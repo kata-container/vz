@@ -160,7 +160,7 @@ func NewVirtioSocketListener(handler func(conn *VirtioSocketConnection, err erro
 		}
 	}()
 	shouldAcceptNewConnectionHandlers[ptr] = func(conn *VirtioSocketConnection) bool {
-		dupConn, err := conn.dup()
+		dupConn, err := conn.Dup()
 		dupCh <- dup{
 			conn: dupConn,
 			err:  err,
@@ -232,7 +232,7 @@ func newVirtioSocketConnection(ptr unsafe.Pointer) *VirtioSocketConnection {
 	return conn
 }
 
-func (v *VirtioSocketConnection) dup() (*VirtioSocketConnection, error) {
+func (v *VirtioSocketConnection) Dup() (*VirtioSocketConnection, error) {
 	nfd, err := syscall.Dup(int(v.fileDescriptor))
 	if err != nil {
 		return nil, &net.OpError{
