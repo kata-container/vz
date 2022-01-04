@@ -135,3 +135,13 @@ func (v *VirtualMachineConfiguration) SetStorageDevicesVirtualMachineConfigurati
 	array := convertToNSMutableArray(ptrs)
 	C.setStorageDevicesVZVirtualMachineConfiguration(v.Ptr(), array.Ptr())
 }
+
+// SetDirectorySharingDevicesMachineConfiguration sets a list of shared directory devices. Empty by default.
+func (v *VirtualMachineConfiguration) SetDirectorySharingDevicesMachineConfiguration(cs []DirectorySharingDeviceConfiguration) {
+	ptrs := make([]NSObject, len(cs))
+	for i, val := range cs {
+		ptrs[i] = val
+	}
+	array := convertToNSMutableArray(ptrs)
+	C.setDirectorySharingDevicesVZVirtualMachineConfiguration(v.Ptr(), array.Ptr())
+}

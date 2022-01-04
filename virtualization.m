@@ -198,6 +198,16 @@ void setStorageDevicesVZVirtualMachineConfiguration(void *config,
 }
 
 /*!
+ @abstract List of shared directory devices. Empty by default.
+ @see VZVirtioFileSystemDeviceConfiguration
+ */
+void setDirectorySharingDevicesVZVirtualMachineConfiguration(void *config,
+                                                   void *directorySharingDevices)
+{
+    [(VZVirtualMachineConfiguration *)config setDirectorySharingDevices:[(NSMutableArray *)directorySharingDevices copy]];
+}
+
+/*!
  @abstract Intialize the VZFileHandleSerialPortAttachment from file descriptors.
  @param readFileDescriptor File descriptor for reading from the file.
  @param writeFileDescriptor File descriptor for writing to the file.
@@ -396,6 +406,34 @@ void *newVZVirtioTraditionalMemoryBalloonDeviceConfiguration()
 void *newVZVirtioSocketDeviceConfiguration()
 {
     return [[VZVirtioSocketDeviceConfiguration alloc] init];
+}
+
+/*!
+ @abstract Create a configuration for the Virtio filesystem (virtiofs) device.
+ @discussion
+    This function returns a virtiofs configuration for sharing a host directory with the guest,
+    through the Virtio filesystem interface.
+
+    Once created, the configuration should be used to configure the virtual machine, with
+    setDirectorySharingDevicesVZVirtualMachineConfiguration.
+ @param hostPath The absolute path to the host directory to share with the guest
+ @param readOnly A flag to make the shared directory read-only to the guest.
+ @param tag The virtiofs tag to use when mounting the directory from the guest.
+ */
+void *newVZVirtioFileSystemDeviceConfiguration(const char *hostPath, bool readOnly, const char *tag)
+{
+  NSString *str = [NSString stringWithUTF8String:tag];
+  VZVirtioFileSystemDeviceConfiguration *config = [[VZVirtioFileSystemDeviceConfiguration alloc] initWithTag:(str)];
+
+  NSString *hostPathNSString = [NSString stringWithUTF8String:hostPath];
+  NSURL *hostPathURL = [NSURL fileURLWithPath:hostPathNSString];
+  VZSharedDirectory *sharedDirectory = [[VZSharedDirectory alloc] initWithURL:hostPathURL readOnly:(BOOL)readOnly];
+
+  VZSingleDirectoryShare *singleDirectoryShare = [[VZSingleDirectoryShare alloc] initWithDirectory:(sharedDirectory)];
+
+  [config setShare:singleDirectoryShare];
+
+  return config;
 }
 
 /*!
