@@ -66,7 +66,20 @@ void *newVZVirtioBlockDeviceConfiguration(void *attachment);
 void *newVZDiskImageStorageDeviceAttachment(const char *diskPath, bool readOnly, void **error);
 void *newVZVirtioTraditionalMemoryBalloonDeviceConfiguration();
 void *newVZVirtioSocketDeviceConfiguration();
-void *newVZVirtioFileSystemDeviceConfiguration(const char* hostPath, bool readOnly, const char *tag);
+
+typedef struct SharedDirectory {
+  char* hostpath;
+  char* guestpath;
+  bool readonly;
+} SharedDirectory;
+
+typedef struct MultipleSharedDirectory {
+  SharedDirectory **directories;
+  uint32_t n_directories;
+} MultipleSharedDirectory;
+
+
+void *newVZVirtioFileSystemDeviceConfiguration(MultipleSharedDirectory directories, const char *tag);
 void *newVZMACAddress(const char *macAddress);
 void *newRandomLocallyAdministeredVZMACAddress();
 const char *getVZMACAddressString(void *macAddress);

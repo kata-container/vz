@@ -8,6 +8,7 @@ package vz
 import "C"
 import (
 	"runtime"
+	"unsafe"
 )
 
 type DirectorySharingDeviceConfiguration interface {
@@ -26,16 +27,36 @@ type VirtioFileSystemDeviceConfiguration struct {
 	*baseDirectorySharingDeviceConfiguration
 }
 
+type SharedDirectory struct {
+	HostPath  string
+	GuestPath string
+	ReadOnly  bool
+}
+
 // NewVirtioSocketDeviceConfiguration creates a new VirtioSocketDeviceConfiguration.
-func NewVirtioFileSystemDeviceConfiguration(hostPath string, readOnly bool, tag string) *VirtioFileSystemDeviceConfiguration {
-	hostPathChar := charWithGoString(hostPath)
+func NewVirtioFileSystemDeviceConfiguration(directories []SharedDirectory, tag string) *VirtioFileSystemDeviceConfiguration {
 	tagChar := charWithGoString(tag)
+
+	var dirList []*C.SharedDirectory
+
+	for _, d := range directories {
+		dir := &C.SharedDirectory{}
+		dir = (*C.SharedDirectory)(C.malloc(C.size_t(unsafe.Sizeof(C.SharedDirectory{}))))
+
+		dir.hostpath = charWithGoString(d.HostPath).CString()
+		dir.guestpath = charWithGoString(d.GuestPath).CString()
+		dir.readonly = C.bool(d.ReadOnly)
+		dirList = append(dirList, dir)
+	}
+
+	sharedDirs := C.MultipleSharedDirectory{}
+	sharedDirs.directories = &dirList[0]
+	sharedDirs.n_directories = C.uint(len(directories))
 
 	config := &VirtioFileSystemDeviceConfiguration{
 		pointer: pointer{
 			ptr: C.newVZVirtioFileSystemDeviceConfiguration(
-				hostPathChar.CString(),
-				C.bool(readOnly),
+				sharedDirs,
 				tagChar.CString()),
 		},
 	}

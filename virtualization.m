@@ -416,24 +416,54 @@ void *newVZVirtioSocketDeviceConfiguration()
 
     Once created, the configuration should be used to configure the virtual machine, with
     setDirectorySharingDevicesVZVirtualMachineConfiguration.
- @param hostPath The absolute path to the host directory to share with the guest
- @param readOnly A flag to make the shared directory read-only to the guest.
- @param tag The virtiofs tag to use when mounting the directory from the guest.
+ @param directories An array of shared directory.
+    Each entry on this array represent a host filesystem to share at guestpath (@see SharedDirectory).
+    @link https://developer.apple.com/documentation/virtualization/vzmultipledirectoryshare?language=objc
+
+    If the array is a single entry one, with an empty ("") guestpath, then the filesystem is mounted
+    directly under the guest specified mount point. This is the single shared directory behaviour.
+    @link https://developer.apple.com/documentation/virtualization/vzsingledirectoryshare?language=objc
+
+ @param tag The virtiofs tag to use when mounting the shared directories from the guest.
  */
-void *newVZVirtioFileSystemDeviceConfiguration(const char *hostPath, bool readOnly, const char *tag)
+void *newVZVirtioFileSystemDeviceConfiguration(MultipleSharedDirectory directories, const char *tag)
 {
   NSString *str = [NSString stringWithUTF8String:tag];
   VZVirtioFileSystemDeviceConfiguration *config = [[VZVirtioFileSystemDeviceConfiguration alloc] initWithTag:(str)];
 
-  NSString *hostPathNSString = [NSString stringWithUTF8String:hostPath];
-  NSURL *hostPathURL = [NSURL fileURLWithPath:hostPathNSString];
-  VZSharedDirectory *sharedDirectory = [[VZSharedDirectory alloc] initWithURL:hostPathURL readOnly:(BOOL)readOnly];
+  if ((directories.n_directories == 1) && (directories.directories[0] != NULL) && (strlen(directories.directories[0]->guestpath) == 0)) {
+      NSString *hostPathNSString = [NSString stringWithUTF8String:directories.directories[0]->hostpath];
+      NSURL *hostPathURL = [NSURL fileURLWithPath:hostPathNSString];
+      VZSharedDirectory *sharedDirectory = [[VZSharedDirectory alloc] initWithURL:hostPathURL readOnly:(BOOL)directories.directories[0]->readonly];
 
-  VZSingleDirectoryShare *singleDirectoryShare = [[VZSingleDirectoryShare alloc] initWithDirectory:(sharedDirectory)];
+      VZSingleDirectoryShare *singleDirectoryShare = [[VZSingleDirectoryShare alloc] initWithDirectory:(sharedDirectory)];
 
-  [config setShare:singleDirectoryShare];
+      [config setShare:singleDirectoryShare];
 
-  return config;
+      return config;
+
+    } else {
+      NSMutableDictionary *sharedDirectoriesDictionary = [[NSMutableDictionary alloc] initWithCapacity:directories.n_directories];
+      for (int i = 0; i < directories.n_directories; i++)
+	{
+	  SharedDirectory *dir = directories.directories[i];
+
+	  NSString *hostPathNSString = [NSString stringWithUTF8String:dir->hostpath];
+	  NSURL *hostPathURL = [NSURL fileURLWithPath:hostPathNSString];
+
+	  NSString *guestPathNSString = [NSString stringWithUTF8String:dir->guestpath];
+
+	  VZSharedDirectory *sharedDirectory = [[VZSharedDirectory alloc] initWithURL:hostPathURL readOnly:(BOOL)dir->readonly];
+
+	  sharedDirectoriesDictionary[guestPathNSString] = sharedDirectory;
+	}
+
+      VZMultipleDirectoryShare *multipleDirectoryShare = [[VZMultipleDirectoryShare alloc] initWithDirectories:(sharedDirectoriesDictionary)];
+
+      [config setShare:multipleDirectoryShare];
+
+      return config;
+    }
 }
 
 /*!
