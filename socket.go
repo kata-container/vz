@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"runtime"
+	"sync"
 	"syscall"
 	"time"
 	"unsafe"
@@ -68,9 +69,18 @@ type VirtioSocketDevice struct {
 	pointer
 }
 
-var connectionHandlers = map[string]func(conn *VirtioSocketConnection, err error){}
+type virtioSocketConnections struct {
+	handlers map[string]func(conn *VirtioSocketConnection, err error)
+	sync.RWMutex
+}
+
+var socketConnections = virtioSocketConnections{
+	handlers: map[string]func(conn *VirtioSocketConnection, err error){},
+}
 
 func newVirtioSocketDevice(ptr, dispatchQueue unsafe.Pointer) *VirtioSocketDevice {
+	socketConnections.Lock()
+	defer socketConnections.Unlock()
 	id := xid.New().String()
 	socketDevice := &VirtioSocketDevice{
 		id:            id,
@@ -79,7 +89,7 @@ func newVirtioSocketDevice(ptr, dispatchQueue unsafe.Pointer) *VirtioSocketDevic
 			ptr: ptr,
 		},
 	}
-	connectionHandlers[id] = func(*VirtioSocketConnection, error) {}
+	socketConnections.handlers[id] = func(*VirtioSocketConnection, error) {}
 
 	runtime.SetFinalizer(socketDevice, func(self *VirtioSocketDevice) {
 		self.Release()
@@ -103,13 +113,15 @@ func (v *VirtioSocketDevice) RemoveSocketListenerForPort(listener *VirtioSocketL
 
 //export connectionHandler
 func connectionHandler(connPtr, errPtr unsafe.Pointer, cid *C.char) {
+	socketConnections.RLock()
+	defer socketConnections.RUnlock()
 	id := (*char)(cid).String()
 	// see: startHandler
 	conn := newVirtioSocketConnection(connPtr)
 	if err := newNSError(errPtr); err != nil {
-		connectionHandlers[id](conn, err)
+		socketConnections.handlers[id](conn, err)
 	} else {
-		connectionHandlers[id](conn, nil)
+		socketConnections.handlers[id](conn, nil)
 	}
 }
 
@@ -121,7 +133,10 @@ func connectionHandler(connPtr, errPtr unsafe.Pointer, cid *C.char) {
 // For a successful connection, this method sets the sourcePort property of the resulting VZVirtioSocketConnection object to a random port number.
 // see: https://developer.apple.com/documentation/virtualization/vzvirtiosocketdevice/3656677-connecttoport?language=objc
 func (v *VirtioSocketDevice) ConnectToPort(port uint32, fn func(conn *VirtioSocketConnection, err error)) {
-	connectionHandlers[v.id] = fn
+	socketConnections.Lock()
+	defer socketConnections.Unlock()
+	socketConnections.handlers[v.id] = fn
+
 	cid := charWithGoString(v.id)
 	defer cid.Free()
 	C.VZVirtioSocketDevice_connectToPort(v.Ptr(), v.dispatchQueue, C.uint32_t(port), cid.CString())
@@ -139,7 +154,14 @@ type dup struct {
 	err  error
 }
 
-var shouldAcceptNewConnectionHandlers = map[unsafe.Pointer]func(conn *VirtioSocketConnection) bool{}
+type newConnectionAcceptMap struct {
+	accept map[unsafe.Pointer]func(conn *VirtioSocketConnection) bool
+	sync.RWMutex
+}
+
+var acceptNewConnections = newConnectionAcceptMap{
+	accept: map[unsafe.Pointer]func(conn *VirtioSocketConnection) bool{},
+}
 
 // NewVirtioSocketListener creates a new VirtioSocketListener with connection handler.
 //
@@ -159,7 +181,11 @@ func NewVirtioSocketListener(handler func(conn *VirtioSocketConnection, err erro
 			go handler(dup.conn, dup.err)
 		}
 	}()
-	shouldAcceptNewConnectionHandlers[ptr] = func(conn *VirtioSocketConnection) bool {
+
+	acceptNewConnections.Lock()
+	defer acceptNewConnections.Unlock()
+
+	acceptNewConnections.accept[ptr] = func(conn *VirtioSocketConnection) bool {
 		dupConn, err := conn.Dup()
 		dupCh <- dup{
 			conn: dupConn,
@@ -179,8 +205,10 @@ func shouldAcceptNewConnectionHandler(listenerPtr, connPtr, devicePtr unsafe.Poi
 	_ = devicePtr // NOTO(codehex): Is this really required? How to use?
 
 	// see: startHandler
+	acceptNewConnections.RLock()
+	defer acceptNewConnections.RUnlock()
 	conn := newVirtioSocketConnection(connPtr)
-	return (C.bool)(shouldAcceptNewConnectionHandlers[listenerPtr](conn))
+	return (C.bool)(acceptNewConnections.accept[listenerPtr](conn))
 }
 
 // VirtioSocketConnection is a port-based connection between the guest operating system and the host computer.
