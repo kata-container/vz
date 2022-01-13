@@ -678,6 +678,15 @@ void startWithCompletionHandler(void *machine, void *queue, const char *vmid)
     Block_release(handler);
 }
 
+void stopWithCompletionHandler(void *machine, void *queue, const char *vmid)
+{
+    handler_t handler = generateHandler(vmid, stopHandler);
+    dispatch_sync((dispatch_queue_t)queue, ^{
+        [(VZVirtualMachine *)machine stopWithCompletionHandler:handler];
+    });
+    Block_release(handler);
+}
+
 void pauseWithCompletionHandler(void *machine, void *queue, const char *vmid)
 {
     handler_t handler = generateHandler(vmid, pauseHandler);
@@ -702,6 +711,15 @@ bool vmCanStart(void *machine, void *queue)
     __block BOOL result;
     dispatch_sync((dispatch_queue_t)queue, ^{
         result = ((VZVirtualMachine *)machine).canStart;
+    });
+    return (bool)result;
+}
+
+bool vmCanStop(void *machine, void *queue)
+{
+    __block BOOL result;
+    dispatch_sync((dispatch_queue_t)queue, ^{
+        result = ((VZVirtualMachine *)machine).canStop;
     });
     return (bool)result;
 }

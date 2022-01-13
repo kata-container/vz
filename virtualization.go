@@ -83,6 +83,7 @@ type (
 	}
 	machineHandlers struct {
 		start  func(error)
+		stop  func(error)
 		pause  func(error)
 		resume func(error)
 	}
@@ -110,6 +111,7 @@ func NewVirtualMachine(config *VirtualMachineConfiguration) *VirtualMachine {
 	}
 	handlers[id] = &machineHandlers{
 		start:  func(error) {},
+		stop:  func(error) {},
 		pause:  func(error) {},
 		resume: func(error) {},
 	}
@@ -192,6 +194,11 @@ func (v *VirtualMachine) CanStart() bool {
 	return bool(C.vmCanStart(v.Ptr(), v.dispatchQueue))
 }
 
+// CanStop returns true if the machine is in a state that can be stopped.
+func (v *VirtualMachine) CanStop() bool {
+	return bool(C.vmCanStop(v.Ptr(), v.dispatchQueue))
+}
+
 // CanPause returns true if the machine is in a state that can be paused.
 func (v *VirtualMachine) CanPause() bool {
 	return bool(C.vmCanPause(v.Ptr(), v.dispatchQueue))
@@ -216,6 +223,18 @@ func startHandler(errPtr unsafe.Pointer, cid *C.char) {
 		handlers[id].start(err)
 	} else {
 		handlers[id].start(nil)
+	}
+}
+
+//export stopHandler
+func stopHandler(errPtr unsafe.Pointer, cid *C.char) {
+	id := (*char)(cid).String()
+	// If returns nil in the cgo world, the nil will not be treated as nil in the Go world
+	// so this is temporarily handled (Go 1.17)
+	if err := newNSError(errPtr); err != nil {
+		handlers[id].stop(err)
+	} else {
+		handlers[id].stop(nil)
 	}
 }
 
@@ -261,6 +280,20 @@ func (v *VirtualMachine) Start(fn func(error)) {
 	C.startWithCompletionHandler(v.Ptr(), v.dispatchQueue, cid.CString())
 	<-done
 }
+
+// Stops a virtual machine that is in either Running or Paused state.
+//
+// - fn parameter called after the virtual machine has been successfully stopped or on error.
+// The error parameter passed to the block is null if the stop was successful.
+func (v *VirtualMachine) Stop(fn func(error)) {
+	h, done := makeHandler(fn)
+	handlers[v.id].stop = h
+	cid := charWithGoString(v.id)
+	defer cid.Free()
+	C.stopWithCompletionHandler(v.Ptr(), v.dispatchQueue, cid.CString())
+	<-done
+}
+
 
 // Pause a virtual machine that is in Running state.
 //

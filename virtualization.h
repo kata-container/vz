@@ -11,6 +11,7 @@
 
 /* exported from cgo */
 void startHandler(void *err, char *id);
+void stopHandler(void *err, char *id);
 void pauseHandler(void *err, char *id);
 void resumeHandler(void *err, char *id);
 void connectionHandler(void *connection, void *err, char *id);
@@ -93,9 +94,11 @@ void VZVirtioSocketDevice_connectToPort(void *socketDevice, void *vmQueue, uint3
 void *newVZVirtualMachineWithDispatchQueue(void *config, void *queue, const char *vmid);
 bool requestStopVirtualMachine(void *machine, void *queue, void **error);
 void startWithCompletionHandler(void *machine, void *queue, const char *vmid);
+void stopWithCompletionHandler(void *machine, void *queue, const char *vmid);
 void pauseWithCompletionHandler(void *machine, void *queue, const char *vmid);
 void resumeWithCompletionHandler(void *machine, void *queue, const char *vmid);
 bool vmCanStart(void *machine, void *queue);
+bool vmCanStop(void *machine, void *queue);
 bool vmCanPause(void *machine, void *queue);
 bool vmCanResume(void *machine, void *queue);
 bool vmCanRequestStop(void *machine, void *queue);
