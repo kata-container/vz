@@ -409,7 +409,39 @@ void *newVZVirtioSocketDeviceConfiguration()
 }
 
 /*!
- @abstract Create a configuration for the Virtio filesystem (virtiofs) device.
+ @abstract Sets the list of shared directories for a Virtio filesystem (virtiofs) device.
+ @discussion
+    This function updates the list of host directories shared with an already running guest.
+
+ @param directories The new list of shared directories.
+    Each entry on this array represent a host filesystem to share at guestpath (@see SharedDirectory).
+    It replaces any list that was previously set at either configuration or run time.
+    @link https://developer.apple.com/documentation/virtualization/vzvirtiofilesystemdevice?language=objc
+ */
+void VZVirtioFileSystemDevice_setShare(void *device, MultipleSharedDirectory directories)
+{
+  NSMutableDictionary *sharedDirectoriesDictionary = [[NSMutableDictionary alloc] initWithCapacity:directories.n_directories];
+  for (int i = 0; i < directories.n_directories; i++)
+    {
+      SharedDirectory *dir = directories.directories[i];
+
+      NSString *hostPathNSString = [NSString stringWithUTF8String:dir->hostpath];
+      NSURL *hostPathURL = [NSURL fileURLWithPath:hostPathNSString];
+
+      NSString *guestPathNSString = [NSString stringWithUTF8String:dir->guestpath];
+
+      VZSharedDirectory *sharedDirectory = [[VZSharedDirectory alloc] initWithURL:hostPathURL readOnly:(BOOL)dir->readonly];
+
+      sharedDirectoriesDictionary[guestPathNSString] = sharedDirectory;
+    }
+
+  VZMultipleDirectoryShare *multipleDirectoryShare = [[VZMultipleDirectoryShare alloc] initWithDirectories:(sharedDirectoriesDictionary)];
+
+  [(VZVirtioFileSystemDevice *)device setShare:multipleDirectoryShare];
+}
+
+/*!
+ @abstract Create a configuration for a Virtio filesystem (virtiofs) device.
  @discussion
     This function returns a virtiofs configuration for sharing a host directory with the guest,
     through the Virtio filesystem interface.
@@ -582,6 +614,16 @@ void *newVZVirtualMachineWithDispatchQueue(void *config, void *queue, const char
 void *VZVirtualMachine_socketDevices(void *machine)
 {
     return [(VZVirtualMachine *)machine socketDevices]; // NSArray<VZSocketDevice *>
+}
+
+/*!
+ @abstract Return the list of directory sharing (a.k.a. virtiofs) devices configured on this virtual machine. Return an empty array if no such device is configured.
+ @see VZVirtioFileSystemDeviceConfiguration
+ @see VZVirtualMachineConfiguration
+ */
+void *VZVirtualMachine_directorySharingDevices(void *machine)
+{
+    return [(VZVirtualMachine *)machine directorySharingDevices]; // NSArray<VZDirectorySharingDevice *>
 }
 
 /*!

@@ -50,7 +50,9 @@ func NewVirtioFileSystemDeviceConfiguration(directories []SharedDirectory, tag s
 	}
 
 	sharedDirs := C.MultipleSharedDirectory{}
-	sharedDirs.directories = &dirList[0]
+	if len(directories) > 0 {
+		sharedDirs.directories = &dirList[0]
+	}
 	sharedDirs.n_directories = C.uint(len(directories))
 
 	config := &VirtioFileSystemDeviceConfiguration{
@@ -66,4 +68,43 @@ func NewVirtioFileSystemDeviceConfiguration(directories []SharedDirectory, tag s
 	})
 
 	return config
+}
+
+type VirtioDirectorySharingDevice struct {
+	pointer
+}
+
+func newVirtioDirectorySharingDevice(ptr unsafe.Pointer) *VirtioDirectorySharingDevice {
+	directorySharingDevice := &VirtioDirectorySharingDevice{
+		pointer: pointer{
+			ptr: ptr,
+		},
+	}
+
+	runtime.SetFinalizer(directorySharingDevice, func(self *VirtioDirectorySharingDevice) {
+		self.Release()
+	})
+
+	return directorySharingDevice
+}
+
+// SetSharedDirectories updates the list of directories shared by a virtiofs device.
+func (d *VirtioDirectorySharingDevice) SetSharedDirectories(directories []SharedDirectory) {
+	var dirList []*C.SharedDirectory
+
+	for _, d := range directories {
+		dir := &C.SharedDirectory{}
+		dir = (*C.SharedDirectory)(C.malloc(C.size_t(unsafe.Sizeof(C.SharedDirectory{}))))
+
+		dir.hostpath = charWithGoString(d.HostPath).CString()
+		dir.guestpath = charWithGoString(d.GuestPath).CString()
+		dir.readonly = C.bool(d.ReadOnly)
+		dirList = append(dirList, dir)
+	}
+
+	sharedDirs := C.MultipleSharedDirectory{}
+	sharedDirs.directories = &dirList[0]
+	sharedDirs.n_directories = C.uint(len(directories))
+
+	C.VZVirtioFileSystemDevice_setShare(d.Ptr(), sharedDirs)
 }

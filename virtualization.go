@@ -154,6 +154,26 @@ func (v *VirtualMachine) SocketDevices() []*VirtioSocketDevice {
 	return socketDevices
 }
 
+// DirectorySharingDevices return the list of virtiofs devices configured on this virtual machine.
+// Return an empty array if no virtiofs device is configured.
+//
+// Since only NewVirtioFileSystemDeviceConfiguration is available in vz package,
+// it will always return a list of VirtioDirectorySharingDevice.
+// see: https://developer.apple.com/documentation/virtualization/vzvirtualmachine/3787645-directorysharingdevices?language=objc
+func (v *VirtualMachine) DirectorySharingDevices() []*VirtioDirectorySharingDevice {
+	nsArray := &NSArray{
+		pointer: pointer{
+			ptr: C.VZVirtualMachine_directorySharingDevices(v.Ptr()),
+		},
+	}
+	ptrs := nsArray.ToPointerSlice()
+	directorySharingDevices := make([]*VirtioDirectorySharingDevice, len(ptrs))
+	for i, ptr := range ptrs {
+		directorySharingDevices[i] = newVirtioDirectorySharingDevice(ptr)
+	}
+	return directorySharingDevices
+}
+
 //export changeStateOnObserver
 func changeStateOnObserver(state C.int, cID *C.char) {
 	id := (*char)(cID)

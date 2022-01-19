@@ -68,6 +68,7 @@ void *newVZDiskImageStorageDeviceAttachment(const char *diskPath, bool readOnly,
 void *newVZVirtioTraditionalMemoryBalloonDeviceConfiguration();
 void *newVZVirtioSocketDeviceConfiguration();
 
+/* Shared Directories */
 typedef struct SharedDirectory {
   char* hostpath;
   char* guestpath;
@@ -81,11 +82,14 @@ typedef struct MultipleSharedDirectory {
 
 
 void *newVZVirtioFileSystemDeviceConfiguration(MultipleSharedDirectory directories, const char *tag);
+void VZVirtioFileSystemDevice_setShare(void *device, MultipleSharedDirectory directories);
+
 void *newVZMACAddress(const char *macAddress);
 void *newRandomLocallyAdministeredVZMACAddress();
 const char *getVZMACAddressString(void *macAddress);
 void *newVZVirtioSocketListener();
 void *VZVirtualMachine_socketDevices(void *machine);
+void *VZVirtualMachine_directorySharingDevices(void *machine);
 void VZVirtioSocketDevice_setSocketListenerForPort(void *socketDevice, void *vmQueue, void *listener, uint32_t port);
 void VZVirtioSocketDevice_removeSocketListenerForPort(void *socketDevice, void *vmQueue, uint32_t port);
 void VZVirtioSocketDevice_connectToPort(void *socketDevice, void *vmQueue, uint32_t port, const char *socketDeviceID);
