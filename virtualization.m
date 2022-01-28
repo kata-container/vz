@@ -317,6 +317,31 @@ void *newVZFileHandleNetworkDeviceAttachment(int fileDescriptor)
 }
 
 /*!
+ * @abstract Return list of available network interfaces for used with bridged network
+ * @see https://developer.apple.com/documentation/virtualization/vzbridgednetworkinterface
+ */
+void *getVZAvailableNetworkInterfaces()
+{
+    return [VZBridgedNetworkInterface networkInterfaces]; // NSArray<networkInterfaces *>
+}
+
+/*!
+ @abstract The interface name represented as a string.
+ */
+const char *getVZBridgedNetworkIdentifier(void *networkInterface)
+{
+    return [[(VZBridgedNetworkInterface *)networkInterface identifier] UTF8String];
+}
+
+/*!
+ @abstract The localized display name represented as a string.
+ */
+const char *getVZBridgedNetworkLocalizedDisplayName(void *networkInterface)
+{
+    return [[(VZBridgedNetworkInterface *)networkInterface localizedDisplayName] UTF8String];
+}
+
+/*!
  @abstract Create  a new Configuration of a paravirtualized network device of type Virtio Network Device.
  @discussion
     The communication channel used on the host is defined through the attachment. It is set with the VZNetworkDeviceConfiguration.attachment property.

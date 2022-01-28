@@ -68,6 +68,11 @@ void *newVZDiskImageStorageDeviceAttachment(const char *diskPath, bool readOnly,
 void *newVZVirtioTraditionalMemoryBalloonDeviceConfiguration();
 void *newVZVirtioSocketDeviceConfiguration();
 
+/* bridged networking */
+void *getVZAvailableNetworkInterfaces();
+const char *getVZBridgedNetworkIdentifier(void *networkInterface);
+const char *getVZBridgedNetworkLocalizedDisplayName(void *networkInterface);
+
 /* Shared Directories */
 typedef struct SharedDirectory {
   char* hostpath;

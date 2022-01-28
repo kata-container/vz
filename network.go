@@ -18,13 +18,10 @@ import (
 // virtual machine send and receive packets on the same physical interface but have distinct network layers.
 //
 // The BridgedNetwork can be used with a BridgedNetworkDeviceAttachment to set up a network device NetworkDeviceConfiguration.
-// TODO(codehex): implement...
+
 // see: https://developer.apple.com/documentation/virtualization/vzbridgednetworkinterface?language=objc
 type BridgedNetwork interface {
 	NSObject
-
-	// NetworkInterfaces returns the list of network interfaces available for bridging.
-	NetworkInterfaces() []BridgedNetwork
 
 	// Identifier returns the unique identifier for this interface.
 	// The identifier is the BSD name associated with the interface (e.g. "en0").
@@ -32,6 +29,38 @@ type BridgedNetwork interface {
 
 	// LocalizedDisplayName returns a display name if available (e.g. "Ethernet").
 	LocalizedDisplayName() string
+}
+
+type VZBridgedNetwork struct {
+	pointer
+}
+
+func GetAvailableInterfacesForBridging() []*VZBridgedNetwork {
+	nsArray := &NSArray{
+		pointer: pointer{
+			ptr: C.getVZAvailableNetworkInterfaces(),
+		},
+	}
+	ptrs := nsArray.ToPointerSlice()
+	brIfcs := make([]*VZBridgedNetwork, len(ptrs))
+	for i, ptr := range ptrs {
+		brIfcs[i] = &VZBridgedNetwork{
+			pointer: pointer{
+				ptr: ptr,
+			},
+		}
+	}
+	return brIfcs
+}
+
+func (b *VZBridgedNetwork) Identifier() string {
+	cstring := (*char)(C.getVZBridgedNetworkIdentifier(b.Ptr()))
+	return cstring.String()
+}
+
+func (b *VZBridgedNetwork) LocalizedDisplayName() string {
+	cstring := (*char)(C.getVZBridgedNetworkLocalizedDisplayName(b.Ptr()))
+	return cstring.String()
 }
 
 // Network device attachment using network address translation (NAT) with outside networks.
