@@ -81,10 +81,6 @@ func newVirtioDirectorySharingDevice(ptr unsafe.Pointer) *VirtioDirectorySharing
 		},
 	}
 
-	runtime.SetFinalizer(directorySharingDevice, func(self *VirtioDirectorySharingDevice) {
-		self.Release()
-	})
-
 	return directorySharingDevice
 }
 
