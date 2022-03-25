@@ -146,7 +146,34 @@ func (v *VirtioSocketDevice) ConnectToPort(port uint32, fn func(conn *VirtioSock
 //
 // see: https://developer.apple.com/documentation/virtualization/vzvirtiosocketlistener?language=objc
 type VirtioSocketListener struct {
+	device        *VirtioSocketDevice
+	acceptChannel chan dup
+	port          uint32
+
 	pointer
+}
+
+func (listener *VirtioSocketListener) Accept() (net.Conn, error) {
+	conn, ok := <-listener.acceptChannel
+	if !ok {
+		return nil, unix.EINVAL
+	}
+
+	return conn.conn, conn.err
+}
+
+func (listener *VirtioSocketListener) Close() error {
+	C.VZVirtioSocketDevice_removeSocketListenerForPort(listener.device.Ptr(), listener.device.dispatchQueue, C.uint32_t(listener.port))
+	close(listener.acceptChannel)
+
+	return nil
+}
+
+func (listener *VirtioSocketListener) Addr() net.Addr {
+	return &Addr{
+		CID:  unix.VMADDR_CID_HOST,
+		Port: listener.port,
+	}
 }
 
 type dup struct {
@@ -167,27 +194,26 @@ var acceptNewConnections = newConnectionAcceptMap{
 //
 // The handler is executed asynchronously. Be sure to close the connection used in the handler by calling `conn.Close`.
 // This is to prevent connection leaks.
-func NewVirtioSocketListener(handler func(conn *VirtioSocketConnection, err error)) *VirtioSocketListener {
+func (v *VirtioSocketDevice) NewVirtioSocketListener(port uint32) *VirtioSocketListener {
 	ptr := C.newVZVirtioSocketListener()
+	acceptCh := make(chan dup, 10)
 	listener := &VirtioSocketListener{
+		device:        v,
+		acceptChannel: acceptCh,
+		port:          port,
 		pointer: pointer{
 			ptr: ptr,
 		},
 	}
 
-	dupCh := make(chan dup, 1)
-	go func() {
-		for dup := range dupCh {
-			go handler(dup.conn, dup.err)
-		}
-	}()
+	C.VZVirtioSocketDevice_setSocketListenerForPort(v.Ptr(), v.dispatchQueue, listener.Ptr(), C.uint32_t(port))
 
 	acceptNewConnections.Lock()
 	defer acceptNewConnections.Unlock()
 
 	acceptNewConnections.accept[ptr] = func(conn *VirtioSocketConnection) bool {
 		dupConn, err := conn.Dup()
-		dupCh <- dup{
+		acceptCh <- dup{
 			conn: dupConn,
 			err:  err,
 		}
