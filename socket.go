@@ -117,7 +117,12 @@ func connectionHandler(connPtr, errPtr unsafe.Pointer, cid *C.char) {
 	defer socketConnections.RUnlock()
 	id := (*char)(cid).String()
 	// see: startHandler
-	conn := newVirtioSocketConnection(connPtr)
+	conn, err := newVirtioSocketConnection(connPtr)
+	if err != nil {
+		socketConnections.handlers[id](conn, err)
+		return
+	}
+
 	if err := newNSError(errPtr); err != nil {
 		socketConnections.handlers[id](conn, err)
 	} else {
@@ -233,7 +238,10 @@ func shouldAcceptNewConnectionHandler(listenerPtr, connPtr, devicePtr unsafe.Poi
 	// see: startHandler
 	acceptNewConnections.RLock()
 	defer acceptNewConnections.RUnlock()
-	conn := newVirtioSocketConnection(connPtr)
+	conn, err := newVirtioSocketConnection(connPtr)
+	if err != nil {
+		return false
+	}
 	return (C.bool)(acceptNewConnections.accept[listenerPtr](conn))
 }
 
@@ -261,12 +269,11 @@ type VirtioSocketConnection struct {
 
 var _ net.Conn = (*VirtioSocketConnection)(nil)
 
-func newVirtioSocketConnection(ptr unsafe.Pointer) *VirtioSocketConnection {
+func newVirtioSocketConnection(ptr unsafe.Pointer) (*VirtioSocketConnection, error) {
 	id := xid.New().String()
 	vzVirtioSocketConnection := C.convertVZVirtioSocketConnection2Flat(ptr)
-	err := unix.SetNonblock(int(vzVirtioSocketConnection.fileDescriptor), true)
-	if err != nil {
-		fmt.Printf("set nonblock: %s\n", err.Error())
+	if err := unix.SetNonblock(int(vzVirtioSocketConnection.fileDescriptor), true); err != nil {
+		return nil, err
 	}
 	conn := &VirtioSocketConnection{
 		id:              id,
@@ -283,7 +290,7 @@ func newVirtioSocketConnection(ptr unsafe.Pointer) *VirtioSocketConnection {
 			Port: (uint32)(vzVirtioSocketConnection.sourcePort),
 		},
 	}
-	return conn
+	return conn, nil
 }
 
 func (v *VirtioSocketConnection) Dup() (*VirtioSocketConnection, error) {
