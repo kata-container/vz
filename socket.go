@@ -91,9 +91,6 @@ func newVirtioSocketDevice(ptr, dispatchQueue unsafe.Pointer) *VirtioSocketDevic
 	}
 	socketConnections.handlers[id] = func(*VirtioSocketConnection, error) {}
 
-	runtime.SetFinalizer(socketDevice, func(self *VirtioSocketDevice) {
-		self.Release()
-	})
 	return socketDevice
 }
 
@@ -225,9 +222,6 @@ func (v *VirtioSocketDevice) NewVirtioSocketListener(port uint32) *VirtioSocketL
 		return true // must be connected
 	}
 
-	runtime.SetFinalizer(listener, func(self *VirtioSocketListener) {
-		self.Release()
-	})
 	return listener
 }
 
